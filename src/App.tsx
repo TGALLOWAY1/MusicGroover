@@ -1,12 +1,12 @@
 import { useRef, useEffect } from 'react'
 import { ControlsPanel } from './components/controls'
-import { GrooveCurve, GrooveVisualizer } from './components/visualizer'
+import { GrooveVisualizer } from './components/visualizer'
 import { useGrooveStore } from './store/useGrooveStore'
 import { loadDevFixture } from './utils/dev-loader'
 
 function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { loadMidiFile, exportMidi, tracks } = useGrooveStore()
+  const { loadMidiFile, exportMidi, tracks, regenerateGroove } = useGrooveStore()
 
   // Auto-load development fixture in dev mode
   useEffect(() => {
@@ -61,6 +61,13 @@ function App() {
               Load MIDI File
             </button>
             <button
+              onClick={regenerateGroove}
+              disabled={tracks.length === 0}
+              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-md transition-colors font-medium text-sm"
+            >
+              Regenerate Groove
+            </button>
+            <button
               onClick={handleExport}
               disabled={tracks.length === 0}
               className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-md transition-colors font-medium text-sm"
@@ -70,14 +77,9 @@ function App() {
           </div>
         </div>
 
-        {/* Top - Groove Curve */}
-        <div className="p-4 border-b border-slate-700">
-          <GrooveCurve width={1200} height={120} />
-        </div>
-
         {/* Middle - Groove Visualizer */}
         <div className="flex-1 p-4 overflow-y-auto">
-          <GrooveVisualizer width={1200} height={400} rowHeight={80} />
+          <GrooveVisualizer width={1200} height={400} />
         </div>
 
         {/* Bottom - Waveform Container (Placeholder) */}
