@@ -144,4 +144,76 @@ For each note event:
 5. Output adjusted timestamp
 
 ### **8.2 Swing Algorithm**
+if swing = s%
+odd note → timestamp += (s - 50)% * swingMagnitude
+even note → unchanged
+
+### **8.3 Random Humanization**
+
+**Deviations**
+- Kick: 2–4 ms  
+- Snare: 3–8 ms  
+- Hat: 5–15 ms  
+- Percussion: 10–25 ms  
+
+Seed is stable for reproducibility.
+
+---
+
+## ⚙️ 9. Non-Functional Requirements
+
+### **Performance**
+- Process 4–16 bars of MIDI efficiently  
+- Real-time preview at ≥ 60 fps  
+
+### **Portability**
+Runs as:
+- Web app (React + WebMIDI + WASM MIDI parser)  
+- Desktop app (Electron or Tauri)
+
+### **Audio**
+- No audio output required (optional later)
+
+---
+
+## ✨ 10. Stretch Goals (Not Required Now)
+- Velocity humanization  
+- Ghost note generator  
+
+---
+
+## ✔️ 11. Acceptance Criteria
+
+### **Humanization Engine**
+- Adds early/late shifts per drum type  
+- Adds swing when enabled  
+- Adds optional track delays  
+- Modifications stay within allowed ranges  
+- Output MIDI feels natural and musical  
+
+### **UI**
+- User can import MIDI  
+- User can assign names to notes (per sound)  
+- Per-drum timing controls visible  
+- Nudge tool works per element  
+- Exported MIDI plays correctly in DAWs  
+
+---
+
+## 📦 12. Deliverables
+- Humanization Engine module  
+- UI mockups  
+- API for generating groove presets  
+- Example MIDI (before/after)  
+- Documentation  
+
+---
+
+## 🛠️ Status
+🚧 Early Development — architecture & prototypes underway.
+
+---
+
+## 📜 License
+*(Add your desired license here — MIT recommended for open source)*
 
