@@ -4,7 +4,8 @@
  */
 
 import { Midi } from '@tonejs/midi'
-import type { GrooveTrack } from './types'
+import type { GrooveTrack, GrooveNote } from './types'
+import { GET_LANE_TYPE, DEV_NOTE_MAPPING } from '../config/mappings'
 
 /**
  * MIDI note number mappings for GM (General MIDI) drum kit
@@ -102,56 +103,57 @@ export class MidiEngine {
 
   /**
    * Convert parsed MIDI tracks into GrooveTrack format
-   * Groups notes by instrument (kick, snare, hats) based on MIDI note numbers
+   * Creates a separate GrooveTrack for each unique MIDI note pitch
+   * Does NOT merge notes into buckets - each pitch gets its own lane
    */
   private convertToGrooveTracks(): GrooveTrack[] {
-    const trackMap: Map<'kick' | 'snare' | 'hats', GrooveTrack['notes']> = new Map([
-      ['kick', []],
-      ['snare', []],
-      ['hats', []],
-    ])
+    // Map to store notes by MIDI number
+    const notesByMidi: Map<number, GrooveNote[]> = new Map()
 
-    // Process all tracks
+    // Process all tracks and collect notes by MIDI number
     this.midi!.tracks.forEach((track) => {
       track.notes.forEach((note) => {
         const midiNote = note.midi
-        let instrument: 'kick' | 'snare' | 'hats' | null = null
-
-        // Identify instrument by MIDI note number
-        if (DRUM_MAPPING.kick.includes(midiNote)) {
-          instrument = 'kick'
-        } else if (DRUM_MAPPING.snare.includes(midiNote)) {
-          instrument = 'snare'
-        } else if (DRUM_MAPPING.hats.includes(midiNote)) {
-          instrument = 'hats'
+        
+        // Get or create notes array for this MIDI number
+        if (!notesByMidi.has(midiNote)) {
+          notesByMidi.set(midiNote, [])
         }
-
-        if (instrument) {
-          const notes = trackMap.get(instrument)!
-          notes.push({
-            originalTime: note.time, // @tonejs/midi provides time in seconds
-            newTime: note.time, // Will be updated by humanize()
-            velocity: note.velocity * 127, // Convert from 0-1 to 0-127
-          })
-        }
+        
+        const notes = notesByMidi.get(midiNote)!
+        notes.push({
+          originalTime: note.time, // @tonejs/midi provides time in seconds
+          newTime: note.time, // Will be updated by humanize()
+          velocity: note.velocity * 127, // Convert from 0-1 to 0-127
+        })
       })
     })
 
-    // Sort notes by time within each track
-    trackMap.forEach((notes) => {
+    // Sort notes by time within each MIDI number
+    notesByMidi.forEach((notes) => {
       notes.sort((a, b) => a.originalTime - b.originalTime)
     })
 
-    // Convert to GrooveTrack array
+    // Convert to GrooveTrack array - one track per unique MIDI number
     const tracks: GrooveTrack[] = []
-    trackMap.forEach((notes, instrument) => {
-      if (notes.length > 0) {
-        tracks.push({
-          instrument,
-          notes,
-        })
-      }
+    notesByMidi.forEach((notes, midiNumber) => {
+      // Get label from DEV_NOTE_MAPPING, fallback to "Note {number}"
+      const label = DEV_NOTE_MAPPING[midiNumber] || `Note ${midiNumber}`
+      
+      // Get physics category for humanization algorithms
+      const physicsCategory = GET_LANE_TYPE(midiNumber)
+      
+      tracks.push({
+        id: `midi-${midiNumber}`,
+        midiNumber,
+        label,
+        physicsCategory,
+        notes,
+      })
     })
+
+    // Sort tracks by MIDI number (ascending: 36, 37, 38...)
+    tracks.sort((a, b) => a.midiNumber - b.midiNumber)
 
     return tracks
   }
@@ -170,16 +172,19 @@ export class MidiEngine {
       const humanizedNotes = track.notes.map((note, index) => {
         let timingOffset = 0 // in milliseconds
 
-        // Apply instrument-specific humanization
-        if (track.instrument === 'kick') {
+        // Apply physics-category-specific humanization
+        if (track.physicsCategory === 'kick') {
           // Kick: Gaussian jitter with specified tightness (stdDev)
           timingOffset = this.gaussianRandom.nextGaussian(0, params.kickTightness)
-        } else if (track.instrument === 'snare') {
+        } else if (track.physicsCategory === 'snare') {
           // Snare: Gaussian jitter + lag (mean delay)
           timingOffset = this.gaussianRandom.nextGaussian(params.snareLag, params.kickTightness * 1.5)
-        } else if (track.instrument === 'hats') {
+        } else if (track.physicsCategory === 'hats') {
           // Hats: Slightly looser jitter, can be late for pocket
           timingOffset = this.gaussianRandom.nextGaussian(params.snareLag * 0.5, params.kickTightness * 2)
+        } else if (track.physicsCategory === 'perc') {
+          // Percussion: More variance, similar to hats
+          timingOffset = this.gaussianRandom.nextGaussian(params.snareLag * 0.3, params.kickTightness * 2.5)
         }
 
         // Apply swing if enabled (globalSwing > 50)
@@ -265,14 +270,14 @@ export class MidiEngine {
     const exportMidi = new Midi()
 
     // Create a map to track which notes have been updated
-    // Key: instrument-originalTime, Value: newTime
+    // Key: midiNumber-originalTime, Value: newTime
     const noteUpdateMap = new Map<string, number>()
     
     // Build map of humanized note times
     humanizedTracks.forEach((track) => {
       track.notes.forEach((note) => {
-        // Create a unique key: instrument + originalTime (rounded to avoid floating point issues)
-        const key = `${track.instrument}-${note.originalTime.toFixed(6)}`
+        // Create a unique key: midiNumber + originalTime (rounded to avoid floating point issues)
+        const key = `${track.midiNumber}-${note.originalTime.toFixed(6)}`
         noteUpdateMap.set(key, note.newTime)
       })
     })
@@ -289,25 +294,13 @@ export class MidiEngine {
       // Process notes and update their times
       originalTrack.notes.forEach((note) => {
         const midiNote = note.midi
-        let instrument: 'kick' | 'snare' | 'hats' | null = null
-
-        // Identify instrument by MIDI note number
-        if (DRUM_MAPPING.kick.includes(midiNote)) {
-          instrument = 'kick'
-        } else if (DRUM_MAPPING.snare.includes(midiNote)) {
-          instrument = 'snare'
-        } else if (DRUM_MAPPING.hats.includes(midiNote)) {
-          instrument = 'hats'
-        }
-
-        // If this note belongs to a humanized instrument, use the new time
+        
+        // Look up the humanized time by MIDI number and original time
         let noteTime = note.time
-        if (instrument) {
-          const key = `${instrument}-${note.time.toFixed(6)}`
-          const newTime = noteUpdateMap.get(key)
-          if (newTime !== undefined) {
-            noteTime = newTime
-          }
+        const key = `${midiNote}-${note.time.toFixed(6)}`
+        const newTime = noteUpdateMap.get(key)
+        if (newTime !== undefined) {
+          noteTime = newTime
         }
 
         // Add note with updated time
