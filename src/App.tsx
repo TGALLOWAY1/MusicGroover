@@ -1,59 +1,84 @@
-import { motion } from 'framer-motion'
+import { useRef } from 'react'
+import { ControlsPanel } from './components/controls'
+import { GrooveCurve, GrooveVisualizer } from './components/visualizer'
+import { useGrooveStore } from './store/useGrooveStore'
 
 function App() {
-  return (
-    <div className="min-h-screen bg-deep-blue text-cyber-cyan">
-      <div className="container mx-auto px-4 py-8">
-        <motion.header
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8"
-        >
-          <h1 className="text-4xl font-bold glow-cyan mb-2">
-            🎵 Music Groover
-          </h1>
-          <p className="text-cyber-orange text-sm">
-            MIDI Humanization Tool
-          </p>
-        </motion.header>
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { loadMidiFile, exportMidi, tracks } = useGrooveStore()
 
-        <motion.main
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="space-y-8"
-        >
-          {/* Placeholder for laned UI */}
-          <div className="grid gap-4">
-            <div className="bg-midnight-blue border border-cyber-cyan/20 rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 text-cyber-orange">
-                Kick Lane
-              </h2>
-              <p className="text-sm text-cyber-cyan/60">
-                Visualizer and controls will go here
-              </p>
-            </div>
-            
-            <div className="bg-midnight-blue border border-cyber-cyan/20 rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 text-cyber-orange">
-                Snare Lane
-              </h2>
-              <p className="text-sm text-cyber-cyan/60">
-                Visualizer and controls will go here
-              </p>
-            </div>
-            
-            <div className="bg-midnight-blue border border-cyber-cyan/20 rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 text-cyber-orange">
-                Hats Lane
-              </h2>
-              <p className="text-sm text-cyber-cyan/60">
-                Visualizer and controls will go here
-              </p>
-            </div>
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      try {
+        await loadMidiFile(file)
+      } catch (error) {
+        console.error('Failed to load MIDI file:', error)
+        alert(`Failed to load MIDI file: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    }
+  }
+
+  const handleExport = () => {
+    try {
+      exportMidi()
+    } catch (error) {
+      console.error('Failed to export MIDI file:', error)
+      alert(`Failed to export MIDI file: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-slate-300 flex">
+      {/* Left Sidebar - Controls Panel */}
+      <ControlsPanel />
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Bar - File Upload */}
+        <div className="p-4 border-b border-slate-700 bg-slate-800 flex items-center justify-between">
+          <h1 className="text-xl font-bold text-slate-200">Music Groover</h1>
+          <div className="flex items-center gap-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".mid,.midi"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-md transition-colors font-medium text-sm"
+            >
+              Load MIDI File
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={tracks.length === 0}
+              className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-md transition-colors font-medium text-sm"
+            >
+              Export
+            </button>
           </div>
-        </motion.main>
+        </div>
+
+        {/* Top - Groove Curve */}
+        <div className="p-4 border-b border-slate-700">
+          <GrooveCurve width={1200} height={120} />
+        </div>
+
+        {/* Middle - Groove Visualizer */}
+        <div className="flex-1 p-4 overflow-y-auto">
+          <GrooveVisualizer width={1200} height={400} rowHeight={80} />
+        </div>
+
+        {/* Bottom - Waveform Container (Placeholder) */}
+        <div
+          id="waveform-container"
+          className="h-32 bg-slate-800 border-t border-slate-700 p-4 flex items-center justify-center"
+        >
+          <p className="text-sm text-slate-500">Waveform view placeholder</p>
+        </div>
       </div>
     </div>
   )
