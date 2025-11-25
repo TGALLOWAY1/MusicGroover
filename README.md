@@ -4,6 +4,7 @@
 Music Groover is a tool that takes perfectly quantized (on-grid) drum MIDI and transforms it into expressive, natural-sounding grooves using intelligent timing offsets, swing, and human-style micro-variations.
 
 MOCKUP 
+
 ![image.png](attachment:2c2f4bde-cf57-4cec-80a2-24e94b423914:image.png)
 
 ---
