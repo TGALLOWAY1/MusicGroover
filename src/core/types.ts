@@ -58,14 +58,23 @@ export interface GroovePreset {
 }
 
 /**
- * GrooveTrack represents a track of notes for a specific drum instrument
+ * GrooveNote represents a single note event
+ */
+export interface GrooveNote {
+  originalTime: number // in seconds
+  newTime: number // in seconds (after humanization)
+  velocity: number // 0-127
+}
+
+/**
+ * GrooveTrack represents a single MIDI pitch with its notes
+ * Each unique MIDI note gets its own track
  */
 export interface GrooveTrack {
-  instrument: 'kick' | 'snare' | 'hats'
-  notes: {
-    originalTime: number // in seconds
-    newTime: number // in seconds (after humanization)
-    velocity: number // 0-127
-  }[]
+  id: string // Unique identifier (e.g., "midi-36")
+  midiNumber: number // MIDI note number (e.g., 38)
+  label: string // Display label (e.g., "Ghost Kick" from mapping)
+  physicsCategory: 'kick' | 'snare' | 'hats' | 'perc' // Derived helper for humanization algorithms
+  notes: GrooveNote[]
 }
 

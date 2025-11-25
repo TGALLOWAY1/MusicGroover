@@ -1,11 +1,19 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { ControlsPanel } from './components/controls'
 import { GrooveCurve, GrooveVisualizer } from './components/visualizer'
 import { useGrooveStore } from './store/useGrooveStore'
+import { loadDevFixture } from './utils/dev-loader'
 
 function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { loadMidiFile, exportMidi, tracks } = useGrooveStore()
+
+  // Auto-load development fixture in dev mode
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      loadDevFixture()
+    }
+  }, [])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
