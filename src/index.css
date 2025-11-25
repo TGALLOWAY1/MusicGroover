@@ -3,10 +3,6 @@
 @tailwind utilities;
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-  
   body {
     @apply bg-deep-blue text-cyber-cyan font-mono antialiased;
     margin: 0;

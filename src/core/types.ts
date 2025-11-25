@@ -57,3 +57,15 @@ export interface GroovePreset {
   seed?: number
 }
 
+/**
+ * GrooveTrack represents a track of notes for a specific drum instrument
+ */
+export interface GrooveTrack {
+  instrument: 'kick' | 'snare' | 'hats'
+  notes: {
+    originalTime: number // in seconds
+    newTime: number // in seconds (after humanization)
+    velocity: number // 0-127
+  }[]
+}
+
