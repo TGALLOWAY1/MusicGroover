@@ -17,7 +17,7 @@ export default {
         'dark-purple': '#1e1b3d',
       },
       fontFamily: {
-        'mono': ['JetBrains Mono', 'Monaco', 'Courier New', 'monospace'],
+        sans: ['Inter', 'system-ui', 'Avenir', 'Helvetica', 'Arial', 'sans-serif'],
       },
       animation: {
         'pulse-cyan': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',

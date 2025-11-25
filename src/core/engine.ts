@@ -23,6 +23,9 @@ const DRUM_MAPPING = {
 export interface HumanizationParams {
   kickTightness: number // Standard deviation in milliseconds for kick timing jitter
   snareLag: number // Mean delay in milliseconds for snare (typically positive for "late" feel)
+  snareRandomness: number // Standard deviation in milliseconds for snare timing jitter
+  hatJitter: number // Standard deviation in milliseconds for hats timing jitter
+  percJitter: number // Standard deviation in milliseconds for percussion timing jitter
   globalSwing: number // Swing percentage (0-100), where 50 = no swing, >50 = swung
 }
 
@@ -33,9 +36,21 @@ class GaussianRandom {
   private spare: number | null = null
   private hasSpare = false
   private seed: number
+  private initialSeed: number
 
   constructor(seed?: number) {
-    this.seed = seed ?? Date.now()
+    this.initialSeed = seed ?? Date.now()
+    this.seed = this.initialSeed
+  }
+
+  /**
+   * Reset the RNG to its initial seed state
+   * This ensures deterministic sequences across multiple runs
+   */
+  resetState(): void {
+    this.seed = this.initialSeed
+    this.hasSpare = false
+    this.spare = null
   }
 
   /**
@@ -159,8 +174,24 @@ export class MidiEngine {
   }
 
   /**
+   * Override the physics category for a specific track
+   * @param trackId The ID of the track to update (e.g., "midi-36")
+   * @param category The new physics category
+   */
+  overrideTrackCategory(trackId: string, category: 'kick' | 'snare' | 'hats' | 'perc'): void {
+    const track = this.tracks.find(t => t.id === trackId)
+    if (track) {
+      track.physicsCategory = category
+    }
+  }
+
+  /**
    * Apply humanization to the parsed tracks
-   * @param params Humanization parameters (kickTightness, snareLag, globalSwing)
+   * Strictly isolates instrument physics by category.
+   * 
+   * Formula: newTime = originalTime + instrumentSpecificOffset + (swingOffset * swingFactor)
+   * 
+   * @param params Humanization parameters
    * @returns Array of humanized GrooveTrack objects
    */
   humanize(params: HumanizationParams): GrooveTrack[] {
@@ -168,38 +199,71 @@ export class MidiEngine {
       throw new Error('No MIDI data loaded. Call parse() first.')
     }
 
-    const humanizedTracks: GrooveTrack[] = this.tracks.map((track) => {
+    // CRITICAL FIX: Reset the RNG state before each humanization pass.
+    // This ensures that changing one parameter (like Kick Tightness) does not
+    // alter the random sequence for other instruments (like Snare).
+    // The snare will now receive the EXACT SAME random numbers as before,
+    // preserving its "jitter" unless its own parameters change.
+    this.gaussianRandom.resetState()
+
+    return this.tracks.map((track) => {
+      // SANITY CHECK LOG (as requested)
+      console.log(`Applying ${track.physicsCategory} logic to track ${track.label}. Settings used:`, {
+        kickTightness: params.kickTightness,
+        snareLag: params.snareLag,
+        snareRandomness: params.snareRandomness,
+        hatJitter: params.hatJitter,
+        percJitter: params.percJitter,
+        globalSwing: params.globalSwing
+      })
+
       const humanizedNotes = track.notes.map((note, index) => {
-        let timingOffset = 0 // in milliseconds
+        let instrumentOffset = 0 // in milliseconds
 
-        // Apply physics-category-specific humanization
-        if (track.physicsCategory === 'kick') {
-          // Kick: Gaussian jitter with specified tightness (stdDev)
-          timingOffset = this.gaussianRandom.nextGaussian(0, params.kickTightness)
-        } else if (track.physicsCategory === 'snare') {
-          // Snare: Gaussian jitter + lag (mean delay)
-          timingOffset = this.gaussianRandom.nextGaussian(params.snareLag, params.kickTightness * 1.5)
-        } else if (track.physicsCategory === 'hats') {
-          // Hats: Slightly looser jitter, can be late for pocket
-          timingOffset = this.gaussianRandom.nextGaussian(params.snareLag * 0.5, params.kickTightness * 2)
-        } else if (track.physicsCategory === 'perc') {
-          // Percussion: More variance, similar to hats
-          timingOffset = this.gaussianRandom.nextGaussian(params.snareLag * 0.3, params.kickTightness * 2.5)
+        // STRICT Category Isolation
+        // Only read settings specific to the track's category
+        switch (track.physicsCategory) {
+          case 'kick':
+            // Kick: Only kickTightness
+            // Gaussian centered at 0 with stdDev = kickTightness
+            instrumentOffset = this.gaussianRandom.nextGaussian(0, params.kickTightness)
+            break
+
+          case 'snare':
+            // Snare: snareLag (fixed mean) + snareRandomness (stdDev variance)
+            instrumentOffset = params.snareLag + this.gaussianRandom.nextGaussian(0, params.snareRandomness)
+            break
+
+          case 'hats':
+            // Hats: Only hatJitter
+            instrumentOffset = this.gaussianRandom.nextGaussian(0, params.hatJitter)
+            break
+
+          case 'perc':
+            // Perc: Only percJitter
+            instrumentOffset = this.gaussianRandom.nextGaussian(0, params.percJitter)
+            break
+
+          default:
+            instrumentOffset = 0
+            break
         }
 
-        // Apply swing if enabled (globalSwing > 50)
+        // Calculate Swing (Global) - Applied regardless of category, but calculated separately
+        let swingOffset = 0
         if (params.globalSwing > 50) {
-          const swingOffset = this.calculateSwingOffset(note.originalTime, index, params.globalSwing)
-          timingOffset += swingOffset
+          swingOffset = this.calculateSwingOffset(note.originalTime, index, params.globalSwing)
         }
 
-        // Convert milliseconds to seconds and apply offset
-        const offsetInSeconds = timingOffset / 1000
-        const newTime = note.originalTime + offsetInSeconds
+        // Final Calculation
+        // newTime = originalTime + instrumentSpecificOffset + swingOffset
+        // No global jitter is applied here, ensuring strict isolation
+        const totalOffsetInSeconds = (instrumentOffset + swingOffset) / 1000
+        const newTime = Math.max(0, note.originalTime + totalOffsetInSeconds)
 
         return {
           ...note,
-          newTime: Math.max(0, newTime), // Ensure time doesn't go negative
+          newTime,
         }
       })
 
@@ -208,8 +272,6 @@ export class MidiEngine {
         notes: humanizedNotes,
       }
     })
-
-    return humanizedTracks
   }
 
   /**
@@ -327,4 +389,3 @@ export class MidiEngine {
     this.gaussianRandom = new GaussianRandom()
   }
 }
-
